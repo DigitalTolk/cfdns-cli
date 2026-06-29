@@ -38,12 +38,16 @@ jobs:
         run: go build ./...
 
       - name: Test
-        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+        run: |
+          go test -race -covermode=atomic -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out
 
-      - name: Report coverage to Coveralls
-        uses: shogo82148/actions-goveralls@v1
+      - name: Upload coverage to Coveralls
+        uses: coverallsapp/github-action@v2
         with:
-          path-to-profile: coverage.out
+          file: coverage.out
+          format: golang
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # Validate the release config without publishing anything.
   goreleaser-check:
