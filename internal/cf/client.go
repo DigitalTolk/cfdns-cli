@@ -5,6 +5,7 @@ package cf
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/cloudflare/cloudflare-go/v4"
@@ -100,7 +101,7 @@ func (c *Client) ListRecords(ctx context.Context, zone Zone) ([]Record, error) {
 			Content:  r.Content,
 			TTL:      int(r.TTL),
 			Proxied:  r.Proxied,
-			Priority: int(r.Priority),
+			Priority: recordPriority(r),
 			Comment:  r.Comment,
 		})
 	}
@@ -108,4 +109,19 @@ func (c *Client) ListRecords(ctx context.Context, zone Zone) ([]Record, error) {
 		return nil, fmt.Errorf("listing records for %s: %w", zone.Name, err)
 	}
 	return out, nil
+}
+
+// recordPriority extracts the priority for the record types that carry one
+// (MX, SRV, URI). The cloudflare-go v4.6.0 RecordResponse union has no
+// discriminator, so it always decodes as an A record and never populates the
+// top-level Priority field — see RecordResponse.UnmarshalJSON. We therefore
+// read it back out of the record's raw JSON, which the SDK does retain.
+func recordPriority(r dns.RecordResponse) int {
+	var raw struct {
+		Priority *float64 `json:"priority"`
+	}
+	if err := json.Unmarshal([]byte(r.JSON.RawJSON()), &raw); err == nil && raw.Priority != nil {
+		return int(*raw.Priority)
+	}
+	return 0
 }
